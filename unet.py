@@ -58,3 +58,62 @@ class ResBlock(nn.Module):
         h = self.conv2(self.act(self.norm2(h)))
         return h + self.skip(x)
 
+class UNet(nn.Module):
+    def __init__(self, emb_dim=256):
+        super().__init__()
+        self.time_emb = TimeEmbedding(emb_dim)
+        self.class_emb = nn.Embedding(3, emb_dim)
+
+        # encoder
+        self.conv_in = nn.Conv2d(3, 64, 3, padding=1)
+        self.res0 = ResBlock(64, 64, emb_dim)                       
+        self.down1 = nn.Conv2d(64, 128, 3, stride=2, padding=1)
+        self.res1 = ResBlock(128, 128, emb_dim)                    
+        self.down2 = nn.Conv2d(128, 256, 3, stride=2, padding=1)
+        self.res2 = ResBlock(256, 256, emb_dim)                    
+        self.down3 = nn.Conv2d(256, 256, 3, stride=2, padding=1)
+        self.res3 = ResBlock(256, 256, emb_dim)                    
+
+        # middle
+        self.mid1 = ResBlock(256, 256, emb_dim)
+        self.mid2 = ResBlock(256, 256, emb_dim)
+
+        # decoder
+        self.res4 = ResBlock(256 + 256, 256, emb_dim)              
+        self.up0 = nn.Sequential(nn.Upsample(scale_factor=2, mode="nearest"),
+                                 nn.Conv2d(256, 256, 3, padding=1))
+        self.res5 = ResBlock(256 + 256, 256, emb_dim)               
+        self.up1 = nn.Sequential(nn.Upsample(scale_factor=2, mode="nearest"),
+                                 nn.Conv2d(256, 256, 3, padding=1))
+        self.res6 = ResBlock(256 + 128, 128, emb_dim)               
+        self.up2 = nn.Sequential(nn.Upsample(scale_factor=2, mode="nearest"),
+                                 nn.Conv2d(128, 128, 3, padding=1))
+        self.res7 = ResBlock(128 + 64, 64, emb_dim)               
+
+        # output
+        self.norm_out = nn.GroupNorm(8, 64)
+        self.act = nn.SiLU()
+        self.conv_out = nn.Conv2d(64, 3, 3, padding=1)
+
+    def forward(self, x, t, y):
+        emb = self.time_emb(t) + self.class_emb(y)
+
+        h = self.conv_in(x)
+        h = self.res0(h, emb);                 s0 = h 
+        h = self.res1(self.down1(h), emb);     s1 = h 
+        h = self.res2(self.down2(h), emb);     s2 = h
+        h = self.res3(self.down3(h), emb);     s3 = h
+
+        h = self.mid1(h, emb)
+        h = self.mid2(h, emb)
+
+        h = self.res4(torch.cat([h, s3], dim=1), emb)
+        h = self.up0(h)                               
+        h = self.res5(torch.cat([h, s2], dim=1), emb)
+        h = self.up1(h)                                
+        h = self.res6(torch.cat([h, s1], dim=1), emb)
+        h = self.up2(h)                                  
+        h = self.res7(torch.cat([h, s0], dim=1), emb)
+
+        return self.conv_out(self.act(self.norm_out(h)))  
+
