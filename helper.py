@@ -5,8 +5,9 @@ ALPHA = 1 - BETA
 ALPHA_BAR = torch.cumprod(ALPHA, dim=0)
 
 def destroy(x0, t=999):
-    noise = torch.randn(x0.shape, device=x0.device, dtype=x0.dtype)
+    noise = torch.randn_like(x0)
+    t = torch.as_tensor(t, device=x0.device)
+    ab = ALPHA_BAR.to(x0.device)[t].view(-1, 1, 1, 1) 
 
-    return torch.sqrt(ALPHA_BAR[t]) * x0 + torch.sqrt(1 - ALPHA_BAR[t]) * noise
-
-    
+    xt = torch.sqrt(ab) * x0 + torch.sqrt(1 - ab) * noise
+    return xt, noise

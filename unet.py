@@ -47,9 +47,9 @@ class ResBlock(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=3, padding=1)
         self.emb_proj = nn.Linear(in_features=emb_dim, out_features=out_ch)
         self.norm2 = nn.GroupNorm(num_groups=8, num_channels=out_ch, eps=1e-05, affine=True)
-        self.conv2 = nn.Conv2d(in_channels=out_ch, out_channels=in_ch, kernel_size=3, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, padding=1)
         self.act = nn.SiLU(inplace=False)
-        self.skip = nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=1, padding=1) if in_ch != out_ch else nn.Identity
+        self.skip = nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=1) if in_ch != out_ch else nn.Identity()
 
     def forward(self, x, emb):
         h = self.conv1(self.act(self.norm1(x)))
